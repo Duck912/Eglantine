@@ -81,14 +81,21 @@ TEST_CASE("Ampere I2F converts signed 16-bit sources", "[video_core][ampere]") {
 }
 
 TEST_CASE("Ampere integer-to-float conversions take immediates", "[video_core][ampere]") {
-    // I2F.U32.RP R7, 0x20; I2FP.F32.U32.RZ R4, 0x100; WARPSYNC R7
-    const std::array<Instruction, 4> code{{
+    const std::array<Instruction, 3> code{{
         {{0x00077906, 0x00000020, 0x00209000, 0x000e2200}},
         {{0x00047845, 0x00000100, 0x0020d000, 0x000fe200}},
-        {{0x00007348, 0x00000007, 0x03800000, 0x000fe800}},
         EXIT,
     }};
-    REQUIRE(static_cast<bool>(LowerToMaxwell(code)));
+    const auto lowered = LowerToMaxwell(code);
+    REQUIRE(lowered);
+    REQUIRE(lowered.instructions.size() == 3);
+    CHECK(lowered.instructions[0] == 0x010420000007f007ULL);
+    CHECK(lowered.instructions[1] == 0x010438000007f004ULL);
+    const Instruction warp_sync{{0x00007348, 0x00000007, 0x03800000, 0x000fe800}};
+    const auto rejected = LowerToMaxwell(std::array{code[0], code[1], warp_sync, EXIT});
+    REQUIRE_FALSE(rejected);
+    CHECK(rejected.error == "unsupported native opcode");
+    CHECK(rejected.error_offset == 0x20);
 }
 
 TEST_CASE("Ampere SUST.P keeps its channel mask", "[video_core][ampere]") {
